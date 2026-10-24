@@ -53,7 +53,9 @@
   .search { text-align: left; }
   input {
     width: 100%;
+    font-family: inherit;
     font-size: 1.4rem;
+    line-height: normal;
     padding: 14px 18px;
     border: 2px solid var(--border);
     border-radius: 12px;
@@ -164,6 +166,23 @@
   .pager button:disabled { opacity: 0.4; cursor: default; }
   #pager-label { min-width: 110px; text-align: center; font-variant-numeric: tabular-nums; }
   .search { position: relative; }
+  /* Sits over the input with matching font and padding so the completion
+     lines up right after the typed text. */
+  .ghost {
+    position: absolute;
+    inset: 0;
+    padding: 14px 18px;
+    border: 2px solid transparent;
+    font-size: 1.4rem;
+    line-height: normal;
+    white-space: pre;
+    overflow: hidden;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+  }
+  #ghost-typed { visibility: hidden; }
+  #ghost-rest { color: var(--muted); opacity: 0.7; }
   .suggestions {
     position: absolute;
     top: 100%;
@@ -199,6 +218,7 @@
     <p class="tagline">Find where any card goes in a 4×4 binder</p>
     <div class="search">
       <input id="num" type="text" autocomplete="off" spellcheck="false" placeholder="Card # or Pokémon name, then Enter" autofocus>
+      <div class="ghost" aria-hidden="true"><span id="ghost-typed"></span><span id="ghost-rest"></span></div>
       <ul class="suggestions hidden" id="suggestions"></ul>
     </div>
   </div>
@@ -334,6 +354,8 @@
   ];
   const MAX_SUGGESTIONS = 8;
   const list = document.getElementById('suggestions');
+  const ghostTyped = document.getElementById('ghost-typed');
+  const ghostRest = document.getElementById('ghost-rest');
   let matches = [];
   let active = -1;
 
@@ -373,6 +395,17 @@
       list.appendChild(li);
     });
     list.classList.toggle('hidden', matches.length === 0);
+    updateGhost();
+  }
+
+  // Inline typeahead: the rest of the highlighted name, shown faintly after
+  // what's typed when the name starts with it. Tab accepts it.
+  function updateGhost() {
+    const name = active !== -1 ? POKEMON[matches[active] - 1] : '';
+    const typed = input.value;
+    const fits = typed && name.toLowerCase().startsWith(typed.toLowerCase()) && name.length > typed.length;
+    ghostTyped.textContent = fits ? typed : '';
+    ghostRest.textContent = fits ? name.slice(typed.length) : '';
   }
 
   function closeSuggestions() {
@@ -407,6 +440,17 @@
     }
     if (e.key === 'Escape') {
       closeSuggestions();
+      return;
+    }
+    // Tab completes the highlighted name and jumps the preview to it.
+    if (e.key === 'Tab' && !e.shiftKey && active !== -1) {
+      e.preventDefault();
+      const dex = matches[active];
+      input.value = POKEMON[dex - 1];
+      show(dex);
+      matches = findMatches(input.value);
+      active = matches.length ? 0 : -1;
+      renderSuggestions();
       return;
     }
     if (e.key !== 'Enter') return;
